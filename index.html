@@ -2673,185 +2673,42 @@ Salvează numele
 <!-- REZULTAT -->
 <div id="brutalResult" style="display:none;"></div>
 </div>
-
 <script>
-// ═══ AUTHENTIFICATION (Supabase + fallback local storage) ═══
+// ═══ AUTHENTIFICATION (demo / local storage) ═══
 (function() {
   const emailInput = document.getElementById('userEmail');
   const passwordInput = document.getElementById('userPassword');
   const signUpBtn = document.getElementById('signUpBtn');
   const loginBtn = document.getElementById('loginBtn');
   const authStatus = document.getElementById('authStatus');
-
-  const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-  const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
-
-  let supabaseClient = null;
-
-  function hasSupabaseConfig() {
-    return (
-      typeof window.supabase !== 'undefined' &&
-      SUPABASE_URL &&
-      SUPABASE_ANON_KEY &&
-      SUPABASE_URL.indexOf('YOUR_PROJECT') === -1 &&
-      SUPABASE_ANON_KEY.indexOf('YOUR_ANON_KEY') === -1
-    );
-  }
-
-  function getSupabase() {
-    if (!hasSupabaseConfig()) return null;
-    if (supabaseClient) return supabaseClient;
-    try {
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      window.pepSupabase = supabaseClient;
-      return supabaseClient;
-    } catch (e) {
-      console.error('Supabase init failed:', e);
-      return null;
-    }
-  }
-
-  function deriveNameFromEmail(email) {
-    let nameFromEmail = (email || '').split('@')[0] || 'User';
-    return nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
-  }
-
-  function setAuthStatus(html, color) {
-    if (!authStatus) return;
-    authStatus.innerHTML = html;
-    authStatus.style.color = color || 'var(--text-muted)';
-  }
-
-  function applyUserToUI(email, name) {
-    const tmNameInput = document.getElementById('tmNameInput');
-    if (emailInput && email) emailInput.value = email;
-    if (tmNameInput && name && tmNameInput.value !== name) tmNameInput.value = name;
-    if (name) window.teamManagerName = name;
-
-    try { if (email) localStorage.setItem('pep_user_email', email); } catch(e) {}
-    try { if (name) localStorage.setItem('pep_name', name); } catch(e) {}
-    try { if (name) localStorage.setItem('pep_tmname', name); } catch(e) {}
-  }
-
-  function setLoggedOutUI() {
-    setAuthStatus('⚠️ Nu ești autentificat. Creează un cont sau loghează-te.', 'var(--text-muted)');
-  }
-
-  function setLoggedInUI(email, name) {
-    setAuthStatus(`✅ Autentificat ca: ${name}<br>📧 ${email}`, '#10b981');
-    applyUserToUI(email, name);
-  }
-
-  function legacyCheckAuthState() {
+  
+  // Verifică dacă există un utilizator logat
+  function checkAuthState() {
     const savedEmail = localStorage.getItem('pep_user_email');
     const savedName = localStorage.getItem('pep_name');
-
+    const tmNameInput = document.getElementById('tmNameInput');
+    
     if (savedEmail && savedName) {
-      setLoggedInUI(savedEmail, savedName);
-    } else {
-      setLoggedOutUI();
-    }
-  }
-
-  async function checkAuthState() {
-    const sb = getSupabase();
-    if (!sb) {
-      legacyCheckAuthState();
-      return;
-    }
-
-    try {
-      const result = await sb.auth.getSession();
-      const session = result && result.data ? result.data.session : null;
-
-      if (session && session.user) {
-        const user = session.user;
-        const email = user.email || '';
-        const meta = user.user_metadata || {};
-        const name =
-          meta.display_name ||
-          meta.full_name ||
-          localStorage.getItem('pep_name') ||
-          deriveNameFromEmail(email);
-
-        setLoggedInUI(email, name);
-      } else {
-        setLoggedOutUI();
+      if (authStatus) {
+        authStatus.innerHTML = `✅ Autentificat ca: ${savedName}<br>📧 ${savedEmail}`;
+        authStatus.style.color = '#10b981';
       }
-    } catch (e) {
-      console.error('checkAuthState error:', e);
-      legacyCheckAuthState();
-    }
-  }
-
-  async function handleSupabaseSignUp(email, password) {
-    const sb = getSupabase();
-    if (!sb) return false;
-
-    const nameFromEmail = deriveNameFromEmail(email);
-    const result = await sb.auth.signUp({
-      email: email,
-      password: password,
-      options: {
-        data: { display_name: nameFromEmail }
-      }
-    });
-
-    if (result.error) {
-      alert('❌ ' + result.error.message);
-      return true;
-    }
-
-    applyUserToUI(email, nameFromEmail);
-    try { localStorage.setItem('pep_onboarded', 'true'); } catch(e) {}
-
-    const session = result.data ? result.data.session : null;
-    if (session && session.user) {
-      setLoggedInUI(email, nameFromEmail);
-      alert(`✅ Cont creat și autentificat cu succes!\nBine ai venit, ${nameFromEmail}!`);
+      if (emailInput) emailInput.value = savedEmail;
+      if (tmNameInput && tmNameInput.value !== savedName) tmNameInput.value = savedName;
     } else {
-      setAuthStatus(`📩 Cont creat pentru ${nameFromEmail}. Verifică e-mailul pentru confirmare, apoi apasă Login.`, '#2563eb');
-      alert(`✅ Cont creat cu succes pentru ${nameFromEmail}!\nVerifică e-mailul pentru confirmare dacă este necesar.`);
+      if (authStatus) {
+        authStatus.innerHTML = '⚠️ Nu ești autentificat. Creează un cont sau loghează-te.';
+        authStatus.style.color = 'var(--text-muted)';
+      }
     }
-    return true;
   }
-
-  async function handleSupabaseLogin(email, password) {
-    const sb = getSupabase();
-    if (!sb) return false;
-
-    const result = await sb.auth.signInWithPassword({
-      email: email,
-      password: password
-    });
-
-    if (result.error) {
-      alert('❌ ' + result.error.message);
-      return true;
-    }
-
-    const user = result.data && result.data.user ? result.data.user : null;
-    const meta = user && user.user_metadata ? user.user_metadata : {};
-    const name =
-      meta.display_name ||
-      meta.full_name ||
-      localStorage.getItem('pep_name') ||
-      deriveNameFromEmail(email);
-
-    applyUserToUI(email, name);
-    try { localStorage.setItem('pep_onboarded', 'true'); } catch(e) {}
-
-    setLoggedInUI(email, name);
-    alert(`✅ Autentificare reușită!\nBine ai revenit, ${name}!`);
-    return true;
-  }
-
+  
   // Sign Up
   if (signUpBtn) {
-    signUpBtn.addEventListener('click', async function() {
+    signUpBtn.addEventListener('click', function() {
       const email = emailInput ? emailInput.value.trim() : '';
       const password = passwordInput ? passwordInput.value.trim() : '';
-
+      
       if (!email) {
         alert('Te rog introdu o adresă de e-mail.');
         return;
@@ -2860,44 +2717,35 @@ Salvează numele
         alert('Te rog introdu o parolă (minim 4 caractere).');
         return;
       }
-
-      signUpBtn.disabled = true;
-      if (loginBtn) loginBtn.disabled = true;
-
-      try {
-        const handledBySupabase = await handleSupabaseSignUp(email, password);
-        if (!handledBySupabase) {
-          let nameFromEmail = deriveNameFromEmail(email);
-
-          localStorage.setItem('pep_user_email', email);
-          localStorage.setItem('pep_user_password', btoa(password)); // fallback simplu
-          localStorage.setItem('pep_name', nameFromEmail);
-          localStorage.setItem('pep_tmname', nameFromEmail);
-
-          const tmNameInput = document.getElementById('tmNameInput');
-          if (tmNameInput) tmNameInput.value = nameFromEmail;
-          window.teamManagerName = nameFromEmail;
-
-          legacyCheckAuthState();
-          alert(`✅ Cont creat cu succes!\nBine ai venit, ${nameFromEmail}!`);
-          try { localStorage.setItem('pep_onboarded', 'true'); } catch(e) {}
-        }
-      } catch (e) {
-        console.error('Sign up failed:', e);
-        alert('❌ A apărut o eroare la crearea contului.');
-      } finally {
-        signUpBtn.disabled = false;
-        if (loginBtn) loginBtn.disabled = false;
-      }
+      
+      // Generează un nume din e-mail (partea din fața @)
+      let nameFromEmail = email.split('@')[0];
+      nameFromEmail = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+      
+      // Salvează credențialele
+      localStorage.setItem('pep_user_email', email);
+      localStorage.setItem('pep_user_password', btoa(password)); // stocare simplă (nu securizată)
+      localStorage.setItem('pep_name', nameFromEmail);
+      
+      // Actualizează câmpul de nume din sidebar
+      const tmNameInput = document.getElementById('tmNameInput');
+      if (tmNameInput) tmNameInput.value = nameFromEmail;
+      window.teamManagerName = nameFromEmail;
+      
+      checkAuthState();
+      alert(`✅ Cont creat cu succes!\nBine ai venit, ${nameFromEmail}!`);
+      
+      // Reîmprospătează onboarding-ul
+      try { localStorage.setItem('pep_onboarded', 'true'); } catch(e) {}
     });
   }
-
+  
   // Login
   if (loginBtn) {
-    loginBtn.addEventListener('click', async function() {
+    loginBtn.addEventListener('click', function() {
       const email = emailInput ? emailInput.value.trim() : '';
       const password = passwordInput ? passwordInput.value.trim() : '';
-
+      
       if (!email) {
         alert('Te rog introdu adresa de e-mail.');
         return;
@@ -2906,63 +2754,123 @@ Salvează numele
         alert('Te rog introdu parola.');
         return;
       }
-
-      loginBtn.disabled = true;
-      if (signUpBtn) signUpBtn.disabled = true;
-
-      try {
-        const handledBySupabase = await handleSupabaseLogin(email, password);
-        if (!handledBySupabase) {
-          const savedEmail = localStorage.getItem('pep_user_email');
-          const savedPassword = localStorage.getItem('pep_user_password');
-
-          if (savedEmail === email && savedPassword === btoa(password)) {
-            const savedName = localStorage.getItem('pep_name') || deriveNameFromEmail(email);
-            const tmNameInput = document.getElementById('tmNameInput');
-            if (tmNameInput && savedName) tmNameInput.value = savedName;
-            window.teamManagerName = savedName;
-            legacyCheckAuthState();
-            alert(`✅ Autentificare reușită!\nBine ai revenit, ${savedName}!`);
-          } else {
-            alert('❌ E-mail sau parolă incorectă.\nCreează un cont nou folosind "Sign Up".');
-          }
-        }
-      } catch (e) {
-        console.error('Login failed:', e);
-        alert('❌ A apărut o eroare la autentificare.');
-      } finally {
-        loginBtn.disabled = false;
-        if (signUpBtn) signUpBtn.disabled = false;
+      
+      const savedEmail = localStorage.getItem('pep_user_email');
+      const savedPassword = localStorage.getItem('pep_user_password');
+      
+      if (savedEmail === email && savedPassword === btoa(password)) {
+        const savedName = localStorage.getItem('pep_name');
+        const tmNameInput = document.getElementById('tmNameInput');
+        if (tmNameInput && savedName) tmNameInput.value = savedName;
+        window.teamManagerName = savedName;
+        checkAuthState();
+        alert(`✅ Autentificare reușită!\nBine ai revenit, ${savedName}!`);
+      } else {
+        alert('❌ E-mail sau parolă incorectă.\nCreează un cont nou folosind "Sign Up".');
       }
     });
   }
-
-  const sb = getSupabase();
-  if (sb) {
-    sb.auth.onAuthStateChange(function(event, session) {
-      try {
-        if (session && session.user) {
-          const email = session.user.email || '';
-          const meta = session.user.user_metadata || {};
-          const name =
-            meta.display_name ||
-            meta.full_name ||
-            localStorage.getItem('pep_name') ||
-            deriveNameFromEmail(email);
-          setLoggedInUI(email, name);
-        } else if (event === 'SIGNED_OUT') {
-          setLoggedOutUI();
-        }
-      } catch (e) {
-        console.error('Auth state change error:', e);
-      }
-    });
-  }
-
+  
+  // Inițializare stare
   checkAuthState();
 })();
-</script>
 
+
+
+// ── TRACK CHOOSER ──
+function chooseTrack(track) {
+  var quickCard = document.getElementById('trackCardQuick');
+  var deepCard = document.getElementById('trackCardDeep');
+  var quickSection = document.getElementById('quickTrackSection');
+  var deepSections = document.querySelectorAll('#part1, .merge-block:not(#introducere-c\u0103l\u0103torie)');
+  
+  if (track === 'quick') {
+    quickCard.classList.add('track-active');
+    deepCard.classList.remove('track-active');
+    quickSection.classList.add('visible');
+  } else {
+    deepCard.classList.add('track-active');
+    quickCard.classList.remove('track-active');
+    quickSection.classList.remove('visible');
+    // Scroll to Part I
+    var p1 = document.getElementById('part1');
+    if (p1) p1.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+
+// ── QUICK ASSESSMENT ──
+document.addEventListener('DOMContentLoaded', function(){
+  var qtQs = [
+    {text:'Intru în prima ședință a zilei fără să mă opresc măcar 30 secunde.', anchor:'Gândește-te la ieri dimineață — ai avut un moment de liniște înainte de a deschide laptopul?'},
+    {text:'Când cineva îmi dă veste proastă, răspund imediat, din emoție.', anchor:'Ultima dată când ai primit o veste proastă de la echipă — ai respirat înainte să răspunzi?'},
+    {text:'Echipa mea vine la mine pentru aproape orice decizie.', anchor:'Câte întrebări ai primit azi/ieri care puteau fi rezolvate fără tine?'},
+    {text:'Evit să dau feedback direct când performanța nu e ok.', anchor:'Cine din echipă are nevoie de feedback pe care nu l-ai dat încă?'},
+    {text:'Știu ce ar trebui să fac diferit, dar nu aplic constant.', anchor:'Care e lucrul pe care îl amâni de cel puțin 2 săptămâni?'}
+  ];
+  var labels = ['niciodată','rar','uneori','des','mereu'];
+  
+  // Render questions
+  var container = document.getElementById('qtQuestions');
+  if(!container) return;
+  
+  var html = '';
+  qtQs.forEach(function(q, i){
+    html += '<div style="background:var(--bg-page);border:1px solid var(--border);border-radius:var(--r-lg);padding:1rem 1.2rem;">';
+    html += '<p style="font-weight:600;font-size:.9rem;color:var(--text-primary) !important;margin:0 0 .25rem;">'+(i+1)+'. '+q.text+'</p>';
+    html += '<p style="font-size:.78rem;font-style:italic;color:var(--text-muted) !important;margin:0 0 .6rem;">'+q.anchor+'</p>';
+    html += '<div style="display:flex;gap:.4rem;flex-wrap:wrap;">';
+    for(var j=0;j<5;j++){
+      html += '<label style="display:flex;align-items:center;gap:.35rem;padding:.4rem .7rem;border:1px solid var(--border);border-radius:var(--r-pill);cursor:pointer;font-size:.8rem;color:var(--text-secondary);transition:all .15s;user-select:none;" ';
+      html += 'onmouseenter="this.style.borderColor=\x27var(--accent)\x27" onmouseleave="if(!this.querySelector(\x27input\x27).checked)this.style.borderColor=\x27var(--border)\x27">';
+      html += '<input type="radio" name="qt_q'+i+'" value="'+(j+1)+'" style="accent-color:#7c3aed;"> '+labels[j]+'</label>';
+    }
+    html += '</div></div>';
+  });
+  container.innerHTML = html;
+  
+  window.calcQuickAssessment = function(){
+    var total = 0, answered = 0;
+    for(var i=0;i<qtQs.length;i++){
+      var sel = document.querySelector('input[name="qt_q'+i+'"]:checked');
+      if(sel){ total += parseInt(sel.value); answered++; }
+    }
+    if(answered < qtQs.length){
+      alert('Răspunde la toate cele '+qtQs.length+' întrebări.');
+      return;
+    }
+    // All negative: 5 (all 1s = best) to 25 (all 5s = worst)
+    var pct = Math.round(((25 - total) / 20) * 100);
+    
+    var level, color, bg, icon, msg, action;
+    if(pct >= 80){
+      level='Fundație solidă'; color='#059669'; bg='#ecfdf5'; icon='🟢';
+      msg='Ai o bază bună. Provocarea ta e consistența — să nu te complezești.';
+      action='Provocare: menține Protocolul de 3 minute fără nicio excepție timp de 7 zile. Dacă reușești — treci la Deep Dive pentru a-ți rafina stilul.';
+    } else if(pct >= 50){
+      level='Potențial neactivat'; color='#2563eb'; bg='#eff6ff'; icon='🔵';
+      msg='Știi ce trebuie, dar nu faci constant. Știi cum se simte asta — spațiul dintre intenție și acțiune.';
+      action='Focus: Cele 3 acțiuni de mai jos sunt exact ce ai nevoie. Nu adăuga nimic altceva. Constanța bate intensitatea.';
+    } else {
+      level='Start real'; color='#d97706'; bg='#fffbeb'; icon='🟡';
+      msg='Nu e un verdict — e un punct de plecare sincer. Toți liderii buni au trecut prin asta.';
+      action='Început: Concentrează-te DOAR pe Acțiunea 1 (Protocolul de 3 minute) timp de 3 zile. Apoi adaugă celelalte. Nu te grăbi.';
+    }
+    
+    var html = '<div style="background:'+bg+';border:2px solid '+color+'30;border-radius:var(--r-xl);padding:1.5rem;animation:slideUp .3s ease;">';
+    html += '<div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.8rem;">';
+    html += '<div style="font-size:2rem;font-weight:800;color:'+color+';">'+pct+'<span style="font-size:.8rem;color:var(--text-muted);">%</span></div>';
+    html += '<div><div style="font-weight:700;color:'+color+';font-size:1rem;">'+icon+' '+level+'</div>';
+    html += '<div style="font-size:.85rem;color:var(--text-secondary);">'+msg+'</div></div></div>';
+    html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:.9rem 1.1rem;">';
+    html += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:'+color+';margin-bottom:.3rem;">Ce faci acum:</div>';
+    html += '<p style="margin:0;font-size:.88rem;color:var(--text-secondary) !important;line-height:1.55;">'+action+'</p></div></div>';
+    
+    document.getElementById('qtResult').innerHTML = html;
+    document.getElementById('qtResult').style.display = 'block';
+    document.getElementById('qtResult').scrollIntoView({behavior:'smooth',block:'center'});
+  };
+});
+</script>
 <div style="margin-top: 2.5rem;">
 <!-- ═══ TRACK CHOOSER ═══ -->
 <div style="text-align:center; margin-bottom:.8rem;">
